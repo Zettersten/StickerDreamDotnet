@@ -2,7 +2,7 @@
 
 ![](./dream.png)
 
-A voice-activated sticker printer built with .NET 9 and Blazor. Press and hold the button, describe what you want, and it generates a black and white coloring page sticker that prints to a thermal printer.
+A voice-activated sticker printer built with .NET 10 and Blazor. Press and hold the button, describe what you want, and it generates a black and white coloring page sticker that prints to a thermal printer.
 
 ## How it works
 
@@ -13,21 +13,23 @@ A voice-activated sticker printer built with .NET 9 and Blazor. Press and hold t
 
 ## Architecture
 
-This is a .NET 9 Blazor Server application using:
-- **.NET Aspire** for orchestration and service discovery
+This is a .NET 10 Blazor Server application using:
+- **.NET Aspire 13** for orchestration, service discovery, and dev tunnels
 - **Blazor Server** for the web UI with interactive components
 - **Google Gemini Imagen API** for image generation
 - **CUPS** for printer management (USB/Bluetooth support)
 - **HuggingFace Transformers.js** (client-side) for Whisper speech-to-text
+- **Dev Tunnels** for public internet access
 
 ## Setup
 
 ### Prerequisites
 
-- .NET 9 SDK
+- .NET 10 SDK (latest version)
 - CUPS (Common Unix Printing System) - usually pre-installed on Linux/macOS
 - A USB or Bluetooth thermal printer
 - Google Gemini API key
+- Azure Dev Tunnels (for public internet access via Aspire)
 
 ### Installation
 
@@ -61,8 +63,11 @@ This will:
 - Start the Blazor Server application
 - Open the Aspire dashboard
 - Provide service discovery and health checks
+- **Automatically create a dev tunnel** for public internet access (via Azure Dev Tunnels)
 
-The app will be available at the URL shown in the console (typically `https://localhost:5001`).
+The app will be available at:
+- Local URL: shown in the console (typically `https://localhost:5001`)
+- **Public URL**: Available via dev tunnel - check the Aspire dashboard for the public URL
 
 ### Running Server Directly
 
@@ -116,12 +121,19 @@ The app includes health checks available at `/health` and `/alive` endpoints (in
 
 ## Technologies
 
-- .NET 9
+- .NET 10 (latest)
 - Blazor Server
-- .NET Aspire
+- .NET Aspire 13 (latest)
 - Google Gemini Imagen API
 - CUPS (for printer management)
 - HuggingFace Transformers.js (client-side Whisper)
+- Azure Dev Tunnels (for public internet access)
+
+## Features
+
+- **Latest .NET 10 Language Features**: Uses primary constructors, collection expressions, and other modern C# features
+- **Dev Tunnels**: Automatically exposes the web frontend via Azure Dev Tunnels for public internet access
+- **Aspire 13**: Latest Aspire version with improved orchestration and service discovery
 
 ## License
 

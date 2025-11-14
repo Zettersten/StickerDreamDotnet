@@ -7,19 +7,11 @@ namespace StickerDream.Server.Services;
 /// <summary>
 /// Generates images using Google Gemini Imagen API
 /// </summary>
-public class ImageGenerationService : IImageGenerationService
+public class ImageGenerationService(HttpClient httpClient, GeminiConfig config, ILogger<ImageGenerationService> logger) : IImageGenerationService
 {
-    private readonly HttpClient _httpClient;
-    private readonly GeminiConfig _config;
-    private readonly ILogger<ImageGenerationService> _logger;
-
-    public ImageGenerationService(HttpClient httpClient, GeminiConfig config, ILogger<ImageGenerationService> logger)
-    {
-        _httpClient = httpClient;
-        _config = config;
-        _logger = logger;
-        _httpClient.BaseAddress = new Uri("https://generativelanguage.googleapis.com/");
-    }
+    private readonly HttpClient _httpClient = httpClient;
+    private readonly GeminiConfig _config = config;
+    private readonly ILogger<ImageGenerationService> _logger = logger;
 
     public async Task<byte[]> GenerateImageAsync(string prompt, CancellationToken cancellationToken = default)
     {
@@ -62,7 +54,7 @@ public class ImageGenerationService : IImageGenerationService
     private class ImageGenerationResponse
     {
         [JsonPropertyName("generatedImages")]
-        public List<GeneratedImage> GeneratedImages { get; set; } = new();
+        public List<GeneratedImage> GeneratedImages { get; set; } = [];
     }
 
     private class GeneratedImage

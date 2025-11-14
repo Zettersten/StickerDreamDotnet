@@ -11,7 +11,10 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 // Add custom services
-builder.Services.AddHttpClient<IImageGenerationService, ImageGenerationService>();
+builder.Services.AddHttpClient<IImageGenerationService, ImageGenerationService>(client =>
+{
+    client.BaseAddress = new Uri("https://generativelanguage.googleapis.com/");
+});
 builder.Services.AddScoped<IPrinterService, PrinterService>();
 
 // Configure Gemini API key

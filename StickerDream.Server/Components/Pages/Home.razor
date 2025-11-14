@@ -114,7 +114,7 @@
         StateHasChanged();
 
         // Check for abort words
-        var abortWords = new[] { "BLANK", "NO IMAGE", "NO STICKER", "CANCEL", "ABORT", "START OVER" };
+        string[] abortWords = ["BLANK", "NO IMAGE", "NO STICKER", "CANCEL", "ABORT", "START OVER"];
         if (string.IsNullOrWhiteSpace(transcript) || 
             abortWords.Any(word => transcript.ToUpper().Contains(word)))
         {

@@ -1,0 +1,13 @@
+/workspace/StickerDream.ServiceDefaults/bin/Debug/net10.0/StickerDream.ServiceDefaults.deps.json
+/workspace/StickerDream.ServiceDefaults/bin/Debug/net10.0/StickerDream.ServiceDefaults.dll
+/workspace/StickerDream.ServiceDefaults/bin/Debug/net10.0/StickerDream.ServiceDefaults.pdb
+/workspace/StickerDream.ServiceDefaults/obj/Debug/net10.0/StickerDream.ServiceDefaults.csproj.AssemblyReference.cache
+/workspace/StickerDream.ServiceDefaults/obj/Debug/net10.0/StickerDream.ServiceDefaults.GeneratedMSBuildEditorConfig.editorconfig
+/workspace/StickerDream.ServiceDefaults/obj/Debug/net10.0/StickerDream.ServiceDefaults.AssemblyInfoInputs.cache
+/workspace/StickerDream.ServiceDefaults/obj/Debug/net10.0/StickerDream.ServiceDefaults.AssemblyInfo.cs
+/workspace/StickerDream.ServiceDefaults/obj/Debug/net10.0/StickerDream.ServiceDefaults.csproj.CoreCompileInputs.cache
+/workspace/StickerDream.ServiceDefaults/obj/Debug/net10.0/StickerDream.ServiceDefaults.sourcelink.json
+/workspace/StickerDream.ServiceDefaults/obj/Debug/net10.0/StickerDream.ServiceDefaults.dll
+/workspace/StickerDream.ServiceDefaults/obj/Debug/net10.0/refint/StickerDream.ServiceDefaults.dll
+/workspace/StickerDream.ServiceDefaults/obj/Debug/net10.0/StickerDream.ServiceDefaults.pdb
+/workspace/StickerDream.ServiceDefaults/obj/Debug/net10.0/ref/StickerDream.ServiceDefaults.dll

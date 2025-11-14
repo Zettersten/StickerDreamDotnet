@@ -6,16 +6,11 @@ namespace StickerDream.Server.Services;
 /// <summary>
 /// Prints images to USB/Bluetooth thermal printers using CUPS
 /// </summary>
-public class PrinterService : IPrinterService, IDisposable
+public class PrinterService(ILogger<PrinterService> logger) : IPrinterService, IDisposable
 {
-    private readonly ILogger<PrinterService> _logger;
+    private readonly ILogger<PrinterService> _logger = logger;
     private readonly CancellationTokenSource _watchCts = new();
     private Task? _watchTask;
-
-    public PrinterService(ILogger<PrinterService> logger)
-    {
-        _logger = logger;
-    }
 
     public async Task<PrintResult> PrintImageAsync(byte[] imageData, PrintOptions? options = null, CancellationToken cancellationToken = default)
     {
