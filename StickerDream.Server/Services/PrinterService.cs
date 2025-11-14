@@ -6,15 +6,14 @@ namespace StickerDream.Server.Services;
 /// <summary>
 /// Prints images to USB/Bluetooth thermal printers using CUPS
 /// </summary>
-public class PrinterService(ILogger<PrinterService> logger) : IPrinterService, IDisposable
+public sealed class PrinterService(ILogger<PrinterService> logger, TimeProvider timeProvider) : IPrinterService
 {
     private readonly ILogger<PrinterService> _logger = logger;
-    private readonly CancellationTokenSource _watchCts = new();
-    private Task? _watchTask;
+    private readonly TimeProvider _timeProvider = timeProvider;
 
     public async Task<PrintResult> PrintImageAsync(byte[] imageData, PrintOptions? options = null, CancellationToken cancellationToken = default)
     {
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var startTime = _timeProvider.GetTimestamp();
         var printRequestId = Guid.NewGuid().ToString("N")[..8];
         options ??= new PrintOptions();
 
@@ -89,7 +88,7 @@ public class PrinterService(ILogger<PrinterService> logger) : IPrinterService, I
                     UseShellExecute = false
                 };
 
-                var processStartTime = System.Diagnostics.Stopwatch.StartNew();
+                var processStartTime = _timeProvider.GetTimestamp();
                 using var process = Process.Start(startInfo);
                 if (process == null)
                 {
@@ -98,14 +97,14 @@ public class PrinterService(ILogger<PrinterService> logger) : IPrinterService, I
                 }
 
                 await process.WaitForExitAsync(cancellationToken);
-                processStartTime.Stop();
+                var processDuration = _timeProvider.GetElapsedTime(processStartTime);
 
                 if (process.ExitCode != 0)
                 {
                     var error = await process.StandardError.ReadToEndAsync(cancellationToken);
                     _logger.LogError(
                         "Print command failed. PrintRequestId: {PrintRequestId}, ExitCode: {ExitCode}, Error: {Error}, DurationMs: {DurationMs}",
-                        printRequestId, process.ExitCode, error, processStartTime.ElapsedMilliseconds);
+                        printRequestId, process.ExitCode, error, processDuration.TotalMilliseconds);
                     throw new InvalidOperationException($"Print failed: {error}");
                 }
 
@@ -113,11 +112,11 @@ public class PrinterService(ILogger<PrinterService> logger) : IPrinterService, I
                 var jobMatch = Regex.Match(output, @"request id is .+-(\d+)");
                 var jobId = jobMatch.Success ? jobMatch.Groups[1].Value : output.Trim();
 
-                stopwatch.Stop();
+                var totalDuration = _timeProvider.GetElapsedTime(startTime);
 
                 _logger.LogInformation(
                     "Print job submitted successfully. PrintRequestId: {PrintRequestId}, PrinterName: {PrinterName}, JobId: {JobId}, TotalDurationMs: {DurationMs}, ProcessDurationMs: {ProcessDurationMs}",
-                    printRequestId, printer.Name, jobId, stopwatch.ElapsedMilliseconds, processStartTime.ElapsedMilliseconds);
+                    printRequestId, printer.Name, jobId, totalDuration.TotalMilliseconds, processDuration.TotalMilliseconds);
 
                 return new PrintResult(printer.Name, jobId);
             }
@@ -139,10 +138,10 @@ public class PrinterService(ILogger<PrinterService> logger) : IPrinterService, I
         }
         catch (Exception ex)
         {
-            stopwatch.Stop();
+            var duration = _timeProvider.GetElapsedTime(startTime);
             _logger.LogError(ex,
                 "Print job failed. PrintRequestId: {PrintRequestId}, DurationMs: {DurationMs}",
-                printRequestId, stopwatch.ElapsedMilliseconds);
+                printRequestId, duration.TotalMilliseconds);
             throw;
         }
     }
@@ -150,7 +149,7 @@ public class PrinterService(ILogger<PrinterService> logger) : IPrinterService, I
     public async Task<List<PrinterInfo>> GetAvailablePrintersAsync(CancellationToken cancellationToken = default)
     {
         var printers = new List<PrinterInfo>();
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var startTime = _timeProvider.GetTimestamp();
 
         _logger.LogDebug("Starting printer discovery");
 
@@ -266,7 +265,7 @@ public class PrinterService(ILogger<PrinterService> logger) : IPrinterService, I
                     printerName, uri, connectionType, isUSB, printerName == defaultPrinter, status);
             }
 
-            stopwatch.Stop();
+            var duration = _timeProvider.GetElapsedTime(startTime);
 
             var usbCount = printers.Count(p => p.IsUSB);
             var bluetoothCount = printers.Count(p => p.Uri.Contains("bluetooth", StringComparison.OrdinalIgnoreCase));
@@ -274,12 +273,12 @@ public class PrinterService(ILogger<PrinterService> logger) : IPrinterService, I
 
             _logger.LogInformation(
                 "Printer discovery completed. TotalPrinters: {TotalCount}, UsbPrinters: {UsbCount}, BluetoothPrinters: {BluetoothCount}, DefaultPrinters: {DefaultCount}, DurationMs: {DurationMs}",
-                printers.Count, usbCount, bluetoothCount, defaultCount, stopwatch.ElapsedMilliseconds);
+                printers.Count, usbCount, bluetoothCount, defaultCount, duration.TotalMilliseconds);
         }
         catch (Exception ex)
         {
-            stopwatch.Stop();
-            _logger.LogError(ex, "Failed to get printers. DurationMs: {DurationMs}", stopwatch.ElapsedMilliseconds);
+            var duration = _timeProvider.GetElapsedTime(startTime);
+            _logger.LogError(ex, "Failed to get printers. DurationMs: {DurationMs}", duration.TotalMilliseconds);
         }
 
         return printers;
@@ -287,150 +286,8 @@ public class PrinterService(ILogger<PrinterService> logger) : IPrinterService, I
 
     public Task StartWatchingPrintersAsync(CancellationToken cancellationToken = default)
     {
-        if (_watchTask != null)
-        {
-            _logger.LogDebug("Printer watcher already started");
-            return _watchTask;
-        }
-
-        _logger.LogInformation("Starting printer watcher service");
-
-        _watchTask = Task.Run(async () =>
-        {
-            _logger.LogInformation("Printer watcher service started");
-            var checkCount = 0;
-
-            while (!_watchCts.Token.IsCancellationRequested)
-            {
-                try
-                {
-                    await Task.Delay(1000, _watchCts.Token);
-                    checkCount++;
-
-                    var printers = await GetAvailablePrintersAsync(_watchCts.Token);
-                    var usbPrinters = printers.Where(p => p.IsUSB).ToList();
-
-                    foreach (var printer in usbPrinters)
-                    {
-                        var isDisabled = printer.Status.Contains("disabled", StringComparison.OrdinalIgnoreCase);
-                        var isPaused = printer.Status.Contains("paused", StringComparison.OrdinalIgnoreCase);
-
-                        if (isDisabled || isPaused)
-                        {
-                            _logger.LogWarning(
-                                "Printer requires attention. PrinterName: {PrinterName}, Status: {Status}, IsDisabled: {IsDisabled}, IsPaused: {IsPaused}, CheckCount: {CheckCount}",
-                                printer.Name, printer.Status, isDisabled, isPaused, checkCount);
-
-                            await EnablePrinterAsync(printer.Name, _watchCts.Token);
-                        }
-                    }
-
-                    // Log periodic status every 60 checks (approximately every minute)
-                    if (checkCount % 60 == 0)
-                    {
-                        var healthyPrinters = usbPrinters.Count(p => 
-                            !p.Status.Contains("disabled", StringComparison.OrdinalIgnoreCase) &&
-                            !p.Status.Contains("paused", StringComparison.OrdinalIgnoreCase));
-                        
-                        _logger.LogInformation(
-                            "Printer watcher status check. TotalUsbPrinters: {TotalCount}, HealthyPrinters: {HealthyCount}, CheckCount: {CheckCount}",
-                            usbPrinters.Count, healthyPrinters, checkCount);
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    _logger.LogInformation("Printer watcher service stopping (cancellation requested)");
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error in printer watcher service. CheckCount: {CheckCount}", checkCount);
-                }
-            }
-
-            _logger.LogInformation("Printer watcher service stopped");
-        }, _watchCts.Token);
-
-        return _watchTask;
-    }
-
-    private async Task EnablePrinterAsync(string printerName, CancellationToken cancellationToken)
-    {
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        _logger.LogInformation("Attempting to enable printer. PrinterName: {PrinterName}", printerName);
-
-        try
-        {
-            var enableProcess = new ProcessStartInfo
-            {
-                FileName = "cupsenable",
-                Arguments = $"\"{printerName}\"",
-                RedirectStandardError = true,
-                UseShellExecute = false
-            };
-
-            using var proc = Process.Start(enableProcess);
-            if (proc != null)
-            {
-                await proc.WaitForExitAsync(cancellationToken);
-                
-                if (proc.ExitCode != 0)
-                {
-                    var error = await proc.StandardError.ReadToEndAsync(cancellationToken);
-                    _logger.LogWarning(
-                        "cupsenable exited with error. PrinterName: {PrinterName}, ExitCode: {ExitCode}, Error: {Error}",
-                        printerName, proc.ExitCode, error);
-                }
-                else
-                {
-                    _logger.LogDebug("cupsenable succeeded. PrinterName: {PrinterName}", printerName);
-                }
-            }
-
-            var acceptProcess = new ProcessStartInfo
-            {
-                FileName = "cupsaccept",
-                Arguments = $"\"{printerName}\"",
-                RedirectStandardError = true,
-                UseShellExecute = false
-            };
-
-            using var acceptProc = Process.Start(acceptProcess);
-            if (acceptProc != null)
-            {
-                await acceptProc.WaitForExitAsync(cancellationToken);
-                
-                if (acceptProc.ExitCode != 0)
-                {
-                    var error = await acceptProc.StandardError.ReadToEndAsync(cancellationToken);
-                    _logger.LogWarning(
-                        "cupsaccept exited with error. PrinterName: {PrinterName}, ExitCode: {ExitCode}, Error: {Error}",
-                        printerName, acceptProc.ExitCode, error);
-                }
-                else
-                {
-                    _logger.LogDebug("cupsaccept succeeded. PrinterName: {PrinterName}", printerName);
-                }
-            }
-
-            stopwatch.Stop();
-            _logger.LogInformation(
-                "Successfully enabled printer. PrinterName: {PrinterName}, DurationMs: {DurationMs}",
-                printerName, stopwatch.ElapsedMilliseconds);
-        }
-        catch (Exception ex)
-        {
-            stopwatch.Stop();
-            _logger.LogWarning(ex,
-                "Failed to enable printer. PrinterName: {PrinterName}, DurationMs: {DurationMs}",
-                printerName, stopwatch.ElapsedMilliseconds);
-        }
-    }
-
-    public void Dispose()
-    {
-        _watchCts.Cancel();
-        _watchTask?.Wait(TimeSpan.FromSeconds(5));
-        _watchCts.Dispose();
+        // This method is kept for backward compatibility but is now handled by PrinterWatcherService
+        _logger.LogDebug("StartWatchingPrintersAsync called - printer watching is now handled by PrinterWatcherService");
+        return Task.CompletedTask;
     }
 }

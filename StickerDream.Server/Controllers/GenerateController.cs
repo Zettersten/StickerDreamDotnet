@@ -1,23 +1,28 @@
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using StickerDream.Server.Services;
 
 namespace StickerDream.Server.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class GenerateController(
+[EnableRateLimiting("generate")]
+public sealed class GenerateController(
     IImageGenerationService imageService,
     IPrinterService printerService,
-    ILogger<GenerateController> logger) : ControllerBase
+    ILogger<GenerateController> logger,
+    TimeProvider timeProvider) : ControllerBase
 {
     private readonly IImageGenerationService _imageService = imageService;
     private readonly IPrinterService _printerService = printerService;
     private readonly ILogger<GenerateController> _logger = logger;
+    private readonly TimeProvider _timeProvider = timeProvider;
 
     [HttpPost]
     public async Task<IActionResult> Generate([FromBody] GenerateRequest request, CancellationToken cancellationToken)
     {
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var startTime = _timeProvider.GetTimestamp();
         var requestId = Guid.NewGuid().ToString("N")[..8];
         var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
@@ -40,13 +45,13 @@ public class GenerateController(
         try
         {
             // Generate image
-            var imageBytes = await _imageService.GenerateImageAsync(request.Prompt, cancellationToken);
+            var imageBytes = await _imageService.GenerateImageAsync(request.Prompt, cancellationToken).ConfigureAwait(false);
 
             _logger.LogInformation(
                 "Image generated successfully. RequestId: {RequestId}, ImageSizeBytes: {ImageSize}",
                 requestId, imageBytes.Length);
 
-            // Print image (non-blocking - continue even if printing fails)
+            // Print image (fire-and-forget - continue even if printing fails)
             _ = Task.Run(async () =>
             {
                 try
@@ -55,7 +60,7 @@ public class GenerateController(
                         "Starting print job in background. RequestId: {RequestId}, ImageSizeBytes: {ImageSize}",
                         requestId, imageBytes.Length);
 
-                    await _printerService.PrintImageAsync(imageBytes, new PrintOptions(FitToPage: true), cancellationToken);
+                    await _printerService.PrintImageAsync(imageBytes, new PrintOptions(FitToPage: true), cancellationToken).ConfigureAwait(false);
                     
                     _logger.LogInformation(
                         "Background print job completed successfully. RequestId: {RequestId}",
@@ -69,24 +74,24 @@ public class GenerateController(
                 }
             }, cancellationToken);
 
-            stopwatch.Stop();
+            var duration = _timeProvider.GetElapsedTime(startTime);
 
             _logger.LogInformation(
                 "Image generation request completed successfully. RequestId: {RequestId}, TotalDurationMs: {DurationMs}, ImageSizeBytes: {ImageSize}",
-                requestId, stopwatch.ElapsedMilliseconds, imageBytes.Length);
+                requestId, duration.TotalMilliseconds, imageBytes.Length);
 
             // Return image
             return File(imageBytes, "image/png");
         }
         catch (Exception ex)
         {
-            stopwatch.Stop();
+            var duration = _timeProvider.GetElapsedTime(startTime);
             _logger.LogError(ex,
                 "Image generation request failed. RequestId: {RequestId}, Prompt: {Prompt}, DurationMs: {DurationMs}",
-                requestId, request.Prompt, stopwatch.ElapsedMilliseconds);
+                requestId, request.Prompt, duration.TotalMilliseconds);
             return StatusCode(500, new { error = ex.Message });
         }
     }
 }
 
-public record GenerateRequest(string Prompt);
+public sealed record GenerateRequest(string Prompt);
