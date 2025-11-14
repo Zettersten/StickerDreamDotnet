@@ -1,0 +1,172 @@
+@page "/"
+@rendermode InteractiveServer
+@implements IDisposable
+@inject HttpClient HttpClient
+@inject IJSRuntime JSRuntime
+@inject ILogger<Home> Logger
+
+<PageTitle>Sticker Dream</PageTitle>
+
+<div class="container">
+    <button class="record @(_isRecording ? "recording" : "") @(_isLoading ? "loading" : "")" 
+            style="@(_showButton ? "display: block;" : "display: none;")"
+            @onpointerdown="StartRecording"
+            @onpointerup="StopRecording"
+            @onpointerleave="StopRecording"
+            @oncontextmenu:preventDefault="true"
+            disabled="@_isLoading">
+        @_buttonText
+    </button>
+    
+    <audio id="audio" style="display: none;"></audio>
+    
+    <p class="transcript">@_transcript</p>
+    
+    @if (!string.IsNullOrEmpty(_imageUrl))
+    {
+        <img class="image-display" src="@_imageUrl" alt="Generated sticker" />
+    }
+</div>
+
+@code {
+    private string _transcript = "Checking microphone access...";
+    private string _buttonText = "Sticker Dream";
+    private bool _showButton = false;
+    private bool _isRecording = false;
+    private bool _isLoading = false;
+    private string _imageUrl = string.Empty;
+    private DotNetObjectReference<Home>? _objRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _objRef = DotNetObjectReference.Create(this);
+            await CheckMicrophoneAccess();
+        }
+    }
+
+    private async Task CheckMicrophoneAccess()
+    {
+        try
+        {
+            var hasAccess = await JSRuntime.InvokeAsync<bool>("checkMicrophoneAccess");
+            if (hasAccess)
+            {
+                _showButton = true;
+                _transcript = "Press the button and imagine a sticker!";
+                StateHasChanged();
+            }
+            else
+            {
+                _transcript = "❌ Microphone access required. Please enable microphone permissions in your browser settings.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error checking microphone access");
+            _transcript = "❌ Microphone access required. Please enable microphone permissions in your browser settings.";
+        }
+    }
+
+    private async Task StartRecording()
+    {
+        if (_isLoading) return;
+
+        try
+        {
+            _isRecording = true;
+            _buttonText = "Listening...";
+            await JSRuntime.InvokeVoidAsync("startRecording", _objRef);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error starting recording");
+            _transcript = "Error: Failed to start recording";
+            _isRecording = false;
+            _buttonText = "Sticker Dream";
+        }
+    }
+
+    private async Task StopRecording()
+    {
+        if (!_isRecording) return;
+
+        try
+        {
+            _isRecording = false;
+            await JSRuntime.InvokeVoidAsync("stopRecording");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error stopping recording");
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnRecordingComplete(string audioBlobUrl, string transcript)
+    {
+        _isRecording = false;
+        _isLoading = true;
+        _buttonText = "Transcribing...";
+        _transcript = transcript;
+        StateHasChanged();
+
+        // Check for abort words
+        var abortWords = new[] { "BLANK", "NO IMAGE", "NO STICKER", "CANCEL", "ABORT", "START OVER" };
+        if (string.IsNullOrWhiteSpace(transcript) || 
+            abortWords.Any(word => transcript.ToUpper().Contains(word)))
+        {
+            _transcript = "No image generated.";
+            _buttonText = "Cancelled";
+            _isLoading = false;
+            StateHasChanged();
+            
+            await Task.Delay(1000);
+            _buttonText = "Sticker Dream";
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            _buttonText = "Dreaming Up...";
+            StateHasChanged();
+
+            // Generate and print image
+            var request = new { prompt = transcript };
+            var response = await HttpClient.PostAsJsonAsync("/api/generate", request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new HttpRequestException($"Server error: {response.StatusCode}");
+            }
+
+            var imageBytes = await response.Content.ReadAsByteArrayAsync();
+            _imageUrl = $"data:image/png;base64,{Convert.ToBase64String(imageBytes)}";
+
+            _buttonText = "Printed!";
+            _transcript = transcript;
+            _isLoading = false;
+            StateHasChanged();
+
+            await Task.Delay(1000);
+            _buttonText = "Sticker Dream";
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error generating image");
+            _transcript = $"{transcript}\n\nError: Failed to generate image";
+            _isLoading = false;
+            _buttonText = "Sticker Dream";
+            StateHasChanged();
+        }
+    }
+
+    public void Dispose()
+    {
+        _objRef?.Dispose();
+    }
+}
