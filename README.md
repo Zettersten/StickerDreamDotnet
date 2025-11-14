@@ -2,65 +2,139 @@
 
 ![](./dream.png)
 
-A voice-activated sticker printer. Press and hold the button, describe what you want, and it generates a black and white coloring page sticker that prints to a thermal printer.
+A voice-activated sticker printer built with .NET 10 and Blazor. Press and hold the button, describe what you want, and it generates a black and white coloring page sticker that prints to a thermal printer.
 
 ## How it works
 
 1. Hold the button and speak (max 15 seconds)
-2. Whisper transcribes your voice
+2. Whisper transcribes your voice (client-side using HuggingFace Transformers.js)
 3. Google Imagen generates a coloring page based on your description
-4. Image displays in browser and prints to USB thermal printer
+4. Image displays in browser and prints to USB/Bluetooth thermal printer
+
+## Architecture
+
+This is a .NET 10 Blazor Server application using:
+- **.NET Aspire 13** for orchestration, service discovery, and dev tunnels
+- **Blazor Server** for the web UI with interactive components
+- **Google Gemini Imagen API** for image generation
+- **CUPS** for printer management (USB/Bluetooth support)
+- **HuggingFace Transformers.js** (client-side) for Whisper speech-to-text
+- **Dev Tunnels** for public internet access
 
 ## Setup
 
-1. Install dependencies:
+### Prerequisites
+
+- .NET 10 SDK (latest version)
+- CUPS (Common Unix Printing System) - usually pre-installed on Linux/macOS
+- A USB or Bluetooth thermal printer
+- Google Gemini API key
+- Azure Dev Tunnels (for public internet access via Aspire)
+
+### Installation
+
+1. Clone the repository
+
+2. Set up your Gemini API key:
 
 ```bash
-pnpm install
+export GEMINI_API_KEY=your_api_key_here
 ```
 
-2. Create `.env` file:
+Or add it to your `appsettings.json` or user secrets:
 
-```
-GEMINI_API_KEY=your_api_key_here
+```bash
+dotnet user-secrets set "GEMINI_API_KEY" "your_api_key_here" --project StickerDream.Server
 ```
 
-3. Connect a USB thermal printer. Currently only supports USB printer in MacOS - I would like to get this running with bluetooth or a receipt printer instead.
+3. Connect your USB or Bluetooth thermal printer. The app will automatically detect and use USB/Bluetooth printers.
 
 ## Running
 
-Start the backend server:
+### Using Aspire (Recommended)
+
+Run the Aspire AppHost which orchestrates all services:
 
 ```bash
-pnpm server
+dotnet run --project StickerDream.AppHost
 ```
 
-Start the frontend (in another terminal):
+This will:
+- Start the Blazor Server application
+- Open the Aspire dashboard
+- Provide service discovery and health checks
+- **Automatically create a dev tunnel** for public internet access (via Azure Dev Tunnels)
+
+The app will be available at:
+- Local URL: shown in the console (typically `https://localhost:5001`)
+- **Public URL**: Available via dev tunnel - check the Aspire dashboard for the public URL
+
+### Running Server Directly
+
+You can also run the server directly:
 
 ```bash
-pnpm dev
+cd StickerDream.Server
+dotnet run
 ```
 
-Open `http://localhost:5173`.
-
-To use your phone, you'll need to visit the page on your local network. Since it uses microphone access, this needs to be a secure origin. I use Cloudflare tunnels for this.
+Open `https://localhost:5001` (or the port shown in the console).
 
 ## Printers
 
-TLDR: [The Phomemo](https://amzn.to/4hOmqki) PM2 will work great over bluetooth or USB.
+**TLDR:** [The Phomemo](https://amzn.to/4hOmqki) PM2 will work great over bluetooth or USB.
 
-While any printer will work, I'm using a 4x6 thermal printer with 4x6 shipping labels. These printers are fast, cheap and don't require ink.
+While any printer will work, we recommend a 4x6 thermal printer with 4x6 shipping labels. These printers are fast, cheap and don't require ink.
 
-Theoretically a bluetooth printer will work as well, but I have not tested. I'd love to get this working with these cheap Niimbot / Bluetooth "Cat printer", though those labels are plastic and not colour-able.
+The app supports:
+- **USB printers** - Automatically detected via CUPS
+- **Bluetooth printers** - Automatically detected via CUPS
+
+The app automatically watches for paused/disabled printers and resumes them.
 
 ## Tips
 
 The image prints right away, which is magical. Sometimes you can goof up. In this case, simply say "CANCEL", "ABORT" or "START OVER" as part of your recording.
 
-## Ideas
+## Development
 
-It would be great if this was more portable. That app has 2 pieces: Client and Server. The TTS happens on the client. The Gemini API calls and printing happens on the server.
+### Project Structure
 
-The server does not do anything computationally expensive - just API calls -, so it could theoretically be run on Raspberry PI or an ESP32, which may require re-writing in C++. The server also sends the data to the printer - so there would need to be drivers or use a lower level protocol use ESC/POS.
+- `StickerDream.AppHost` - Aspire orchestration project
+- `StickerDream.Server` - Blazor Server application
+- `StickerDream.ServiceDefaults` - Shared Aspire configuration
 
-It could not be run 100% on an iphone browser as WebSerial / Web USB isn't supported on Safari. Perhaps it could as a react native app?
+### Key Services
+
+- `ImageGenerationService` - Handles Google Gemini Imagen API calls
+- `PrinterService` - Manages CUPS printer operations (USB/Bluetooth)
+
+### Building
+
+```bash
+dotnet build
+```
+
+### Testing
+
+The app includes health checks available at `/health` and `/alive` endpoints (in development mode).
+
+## Technologies
+
+- .NET 10 (latest)
+- Blazor Server
+- .NET Aspire 13 (latest)
+- Google Gemini Imagen API
+- CUPS (for printer management)
+- HuggingFace Transformers.js (client-side Whisper)
+- Azure Dev Tunnels (for public internet access)
+
+## Features
+
+- **Latest .NET 10 Language Features**: Uses primary constructors, collection expressions, and other modern C# features
+- **Dev Tunnels**: Automatically exposes the web frontend via Azure Dev Tunnels for public internet access
+- **Aspire 13**: Latest Aspire version with improved orchestration and service discovery
+
+## License
+
+MIT
