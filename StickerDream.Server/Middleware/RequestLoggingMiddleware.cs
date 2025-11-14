@@ -3,14 +3,15 @@ namespace StickerDream.Server.Middleware;
 /// <summary>
 /// Middleware for logging HTTP requests and responses
 /// </summary>
-public class RequestLoggingMiddleware(RequestDelegate next, ILogger<RequestLoggingMiddleware> logger)
+public sealed class RequestLoggingMiddleware(RequestDelegate next, ILogger<RequestLoggingMiddleware> logger, TimeProvider timeProvider)
 {
     private readonly RequestDelegate _next = next;
     private readonly ILogger<RequestLoggingMiddleware> _logger = logger;
+    private readonly TimeProvider _timeProvider = timeProvider;
 
     public async Task InvokeAsync(HttpContext context)
     {
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var startTime = _timeProvider.GetTimestamp();
         var requestId = Guid.NewGuid().ToString("N")[..8];
         
         // Add request ID to context for correlation
@@ -28,21 +29,21 @@ public class RequestLoggingMiddleware(RequestDelegate next, ILogger<RequestLoggi
 
         try
         {
-            await _next(context);
+            await _next(context).ConfigureAwait(false);
             
-            stopwatch.Stop();
+            var duration = _timeProvider.GetElapsedTime(startTime);
             var statusCode = context.Response.StatusCode;
 
             _logger.LogInformation(
                 "HTTP request completed. RequestId: {RequestId}, Method: {Method}, Path: {Path}, StatusCode: {StatusCode}, DurationMs: {DurationMs}",
-                requestId, method, path, statusCode, stopwatch.ElapsedMilliseconds);
+                requestId, method, path, statusCode, duration.TotalMilliseconds);
 
             // Log warnings for slow requests
-            if (stopwatch.ElapsedMilliseconds > 5000)
+            if (duration.TotalMilliseconds > 5000)
             {
                 _logger.LogWarning(
                     "Slow HTTP request detected. RequestId: {RequestId}, Method: {Method}, Path: {Path}, DurationMs: {DurationMs}",
-                    requestId, method, path, stopwatch.ElapsedMilliseconds);
+                    requestId, method, path, duration.TotalMilliseconds);
             }
 
             // Log errors for 5xx status codes
@@ -55,10 +56,10 @@ public class RequestLoggingMiddleware(RequestDelegate next, ILogger<RequestLoggi
         }
         catch (Exception ex)
         {
-            stopwatch.Stop();
+            var duration = _timeProvider.GetElapsedTime(startTime);
             _logger.LogError(ex,
                 "HTTP request failed with exception. RequestId: {RequestId}, Method: {Method}, Path: {Path}, DurationMs: {DurationMs}",
-                requestId, method, path, stopwatch.ElapsedMilliseconds);
+                requestId, method, path, duration.TotalMilliseconds);
             throw;
         }
     }

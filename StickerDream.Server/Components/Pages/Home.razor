@@ -1,7 +1,7 @@
 @page "/"
 @rendermode InteractiveServer
 @implements IDisposable
-@inject HttpClient HttpClient
+@inject IHttpClientFactory HttpClientFactory
 @inject IJSRuntime JSRuntime
 @inject ILogger<Home> Logger
 
@@ -135,8 +135,9 @@
             StateHasChanged();
 
             // Generate and print image
+            using var httpClient = HttpClientFactory.CreateClient();
             var request = new { prompt = transcript };
-            var response = await HttpClient.PostAsJsonAsync("/api/generate", request);
+            var response = await httpClient.PostAsJsonAsync("/api/generate", request);
 
             if (!response.IsSuccessStatusCode)
             {

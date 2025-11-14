@@ -4,9 +4,14 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <EnableSdkContainerSupport>true</EnableSdkContainerSupport>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AspNetCore.HealthChecks.UI.Client" Version="9.0.1" />
+    <PackageReference Include="Microsoft.AspNetCore.OutputCaching" Version="10.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.RateLimiting" Version="10.0.0" />
     <PackageReference Include="System.Drawing.Common" Version="10.0.0" />
   </ItemGroup>
 
