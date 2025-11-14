@@ -1,5 +1,6 @@
 using StickerDream.Server.Components;
 using StickerDream.Server.Services;
+using StickerDream.Server.Middleware;
 using Microsoft.Extensions.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -32,6 +33,8 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
     app.UseHsts();
 }
+
+app.UseMiddleware<RequestLoggingMiddleware>();
 
 app.UseHttpsRedirection();
 app.UseAntiforgery();

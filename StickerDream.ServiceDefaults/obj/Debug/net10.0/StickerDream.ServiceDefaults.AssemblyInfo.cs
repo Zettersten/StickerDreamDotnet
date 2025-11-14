@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("StickerDream.ServiceDefaults")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bff9be8785fecd08e15663ce7334214afe7c1f4f")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+77ca5bf498b0daee620939c314469f0bcf38edab")]
 [assembly: System.Reflection.AssemblyProductAttribute("StickerDream.ServiceDefaults")]
 [assembly: System.Reflection.AssemblyTitleAttribute("StickerDream.ServiceDefaults")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
